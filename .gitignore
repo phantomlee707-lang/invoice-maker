@@ -1,0 +1,30 @@
+# Gradle / build
+.gradle/
+build/
+*/build/
+.kotlin/
+
+# Local machine config (SDK path) — not secret but machine-specific
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+
+# Signing keys & secrets — NEVER commit
+*.keystore
+*.jks
+keystore.properties
+release.keystore
+
+# Build artifacts
+*.apk
+*.aab
+captures/
+.cxx/
+.externalNativeBuild/
