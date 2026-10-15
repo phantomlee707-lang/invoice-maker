@@ -9,7 +9,6 @@ data class LineItemInput(
     val quantity: BigDecimal = BigDecimal.ONE,
     val unitPrice: Money = Money.ZERO,
     val discount: Money = Money.ZERO,
-    val taxPercent: BigDecimal? = null,
 ) {
     companion object {
         private val seq = java.util.concurrent.atomic.AtomicLong(0)
@@ -17,19 +16,19 @@ data class LineItemInput(
     }
 }
 
-/** The computed breakdown for one line. */
+/** The computed breakdown for one line. Tax is applied at the invoice level, not per line. */
 data class LineTotal(
     val gross: Money,      // quantity * unitPrice
     val discount: Money,   // discount actually applied (capped at gross)
     val taxable: Money,    // gross - discount
-    val tax: Money,        // taxable * taxPercent/100 (HALF_UP)
-    val total: Money,      // taxable + tax
+    val total: Money,      // = taxable (tax added at invoice level)
 )
 
-/** Invoice-level totals. */
+/** Invoice-level totals. taxAmount = (subtotal - discount) * taxRate/100. */
 data class InvoiceTotals(
     val subtotal: Money,        // sum of line gross
     val totalDiscount: Money,   // sum of applied discounts
-    val totalTax: Money,        // sum of line taxes
-    val grandTotal: Money,      // subtotal - totalDiscount + totalTax
+    val taxRate: BigDecimal,    // percent, e.g. 11
+    val taxAmount: Money,       // (subtotal - discount) * taxRate/100
+    val grandTotal: Money,      // subtotal - discount + taxAmount
 )

@@ -68,13 +68,7 @@ fun BuilderScreen(vm: InvoiceViewModel, onIssued: () -> Unit) {
                 SectionCard("Quick add from items") {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(s.items) { ci ->
-                            AssistChip(onClick = {
-                                vm.addCatalogLine(
-                                    ci.description,
-                                    ci.unitPriceMinor,
-                                    ci.defaultTaxPercent?.let { p -> runCatching { BigDecimal(p) }.getOrNull() },
-                                )
-                            }, label = { Text(ci.description) })
+                            AssistChip(onClick = { vm.addCatalogLine(ci.description, ci.unitPriceMinor) }, label = { Text(ci.description) })
                         }
                     }
                 }
@@ -108,6 +102,8 @@ fun BuilderScreen(vm: InvoiceViewModel, onIssued: () -> Unit) {
                         FilterChip(selected = s.draftTemplate == t, onClick = { vm.setDraftTemplate(t) }, label = { Text(t.lowercase().replaceFirstChar { it.uppercase() }) })
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                LabeledField("Tax Rate % (optional)", s.draftTaxRate, keyboardType = KeyboardType.Decimal) { vm.setDraftTaxRate(it) }
             }
         }
 
@@ -126,7 +122,8 @@ fun BuilderScreen(vm: InvoiceViewModel, onIssued: () -> Unit) {
                 val t = s.draftTotals
                 TotalRow("Subtotal", Money.of(t.subtotal.minor).format(s.profile.currency))
                 if (t.totalDiscount.minor != 0L) TotalRow("Discount", "-" + Money.of(t.totalDiscount.minor).format(s.profile.currency))
-                if (t.totalTax.minor != 0L) TotalRow("Tax", Money.of(t.totalTax.minor).format(s.profile.currency))
+                if (t.taxRate.signum() != 0) TotalRow("Tax Rate", "${t.taxRate.stripTrailingZeros().toPlainString()}%")
+                if (t.taxAmount.minor != 0L) TotalRow("Tax Amount", Money.of(t.taxAmount.minor).format(s.profile.currency))
                 HorizontalDivider(Modifier.padding(vertical = 6.dp))
                 TotalRow("Grand Total", Money.of(t.grandTotal.minor).format(s.profile.currency), bold = true)
                 Spacer(Modifier.height(12.dp))
@@ -153,14 +150,12 @@ private fun LineEditor(index: Int, line: LineItemInput, currency: String, onChan
     var qty by remember(line.id) { mutableStateOf(if (line.quantity.stripTrailingZeros().toPlainString() == "1") "" else line.quantity.toPlainString()) }
     var price by remember(line.id) { mutableStateOf(if (line.unitPrice.minor == 0L) "" else Money.of(line.unitPrice.minor).format(currency).replace(Regex("[^0-9.]"), "")) }
     var discount by remember(line.id) { mutableStateOf(if (line.discount.minor == 0L) "" else Money.of(line.discount.minor).format(currency).replace(Regex("[^0-9.]"), "")) }
-    var tax by remember(line.id) { mutableStateOf(line.taxPercent?.toPlainString() ?: "") }
 
     fun emit() = onChange(line.copy(
         description = desc,
         quantity = parseDec(qty.ifBlank { "1" }) ?: BigDecimal.ONE,
         unitPrice = parseMoney(price.ifBlank { "0" }) ?: Money.ZERO,
         discount = parseMoney(discount.ifBlank { "0" }) ?: Money.ZERO,
-        taxPercent = parseDec(tax),
     ))
 
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -177,8 +172,7 @@ private fun LineEditor(index: Int, line: LineItemInput, currency: String, onChan
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LabeledField("Discount", discount, keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1.4f)) { discount = it; emit() }
-                LabeledField("Tax %", tax, keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f)) { tax = it; emit() }
+                LabeledField("Discount", discount, keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f)) { discount = it; emit() }
             }
         }
     }

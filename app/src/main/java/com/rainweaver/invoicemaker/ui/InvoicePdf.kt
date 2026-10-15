@@ -140,7 +140,7 @@ object InvoicePdf {
         val th = Paint().apply { textSize = 10f; typeface = Typeface.DEFAULT_BOLD; color = s.headerText }
         c.drawText("DESCRIPTION", MARGIN + 6, yStart + 15, th)
         c.drawText("QTY", 330f, yStart + 15, th)
-        c.drawText("UNIT", 385f, yStart + 15, th)
+        c.drawText("PRICE", 385f, yStart + 15, th)
         c.drawText("AMOUNT", RIGHT - 6, yStart + 15, Paint(th).apply { textAlign = Paint.Align.RIGHT })
         val rule = Paint().apply { color = s.ruleColor; strokeWidth = 1f }
         c.drawLine(MARGIN, yStart + h, RIGHT, yStart + h, rule)
@@ -205,7 +205,9 @@ object InvoicePdf {
         }
         row("Subtotal", plain(inv.invoice.subtotalMinor, digits))
         if (inv.invoice.totalDiscountMinor != 0L) row("Discount", "-" + plain(inv.invoice.totalDiscountMinor, digits))
-        if (inv.invoice.totalTaxMinor != 0L) row("Tax", plain(inv.invoice.totalTaxMinor, digits))
+        val rate = inv.invoice.taxRate.toBigDecimalOrNull() ?: BigDecimal.ZERO
+        if (rate.signum() != 0) row("Tax Rate", "${rate.stripTrailingZeros().toPlainString()}%")
+        if (inv.invoice.totalTaxMinor != 0L) row("Tax Amount", plain(inv.invoice.totalTaxMinor, digits))
         y += 2
         val rule = Paint().apply { color = s.ruleColor; strokeWidth = 1f }
         c.drawLine(340f, y, RIGHT, y, rule)

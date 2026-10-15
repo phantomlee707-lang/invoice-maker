@@ -57,6 +57,7 @@ data class InvoiceEntity(
     val status: String,             // DRAFT / ISSUED / PAID
     val currency: String,
     val template: String = "MINIMAL",
+    val taxRate: String = "0",      // BigDecimal percent, invoice-level (e.g. "11")
     // frozen customer snapshot
     val customerName: String,
     val customerContact: String = "",

@@ -13,7 +13,7 @@ class InvoiceCalculatorTest {
             LineItemInput(description = "Widget", quantity = BigDecimal("2"), unitPrice = money(500))
         )
         assertEquals(1000L, lt.gross.minor)
-        assertEquals(0L, lt.tax.minor)
+        assertEquals(1000L, lt.taxable.minor)
         assertEquals(1000L, lt.total.minor)
     }
 
@@ -33,34 +33,34 @@ class InvoiceCalculatorTest {
     }
 
     @Test fun taxRoundsHalfUpDown() {
-        // taxable 1050 * 8.5% = 89.25 -> 89
-        val lt = InvoiceCalculator.lineTotal(
-            LineItemInput(description = "X", quantity = BigDecimal.ONE, unitPrice = money(1050), taxPercent = BigDecimal("8.5"))
-        )
-        assertEquals(1050L, lt.taxable.minor)
-        assertEquals(89L, lt.tax.minor)
-        assertEquals(1139L, lt.total.minor)
+        // 1050 * 8.5% = 89.25 -> 89
+        val tax = InvoiceCalculator.taxAmount(money(1050), money(0), BigDecimal("8.5"))
+        assertEquals(89L, tax.minor)
     }
 
     @Test fun taxRoundsHalfUpUp() {
-        // taxable 100 * 8.5% = 8.5 -> 9 (HALF_UP)
-        val lt = InvoiceCalculator.lineTotal(
-            LineItemInput(description = "X", quantity = BigDecimal.ONE, unitPrice = money(100), taxPercent = BigDecimal("8.5"))
-        )
-        assertEquals(9L, lt.tax.minor)
+        // 100 * 8.5% = 8.5 -> 9 (HALF_UP)
+        val tax = InvoiceCalculator.taxAmount(money(100), money(0), BigDecimal("8.5"))
+        assertEquals(9L, tax.minor)
+    }
+
+    @Test fun taxOnDiscountedBase() {
+        // subtotal 1050, discount 50 -> base 1000 * 10% = 100
+        val tax = InvoiceCalculator.taxAmount(money(1050), money(50), BigDecimal("10"))
+        assertEquals(100L, tax.minor)
     }
 
     @Test fun totalsAggregate() {
         val items = listOf(
             LineItemInput(description = "A", quantity = BigDecimal("2"), unitPrice = money(1000)),
             LineItemInput(description = "B", quantity = BigDecimal.ONE, unitPrice = money(500), discount = money(100)),
-            LineItemInput(description = "C", quantity = BigDecimal.ONE, unitPrice = money(1000), taxPercent = BigDecimal("10")),
+            LineItemInput(description = "C", quantity = BigDecimal.ONE, unitPrice = money(1000)),
         )
-        val t = InvoiceCalculator.totals(items)
-        assertEquals(3500L, t.subtotal.minor)    // 2000 + 500 + 1000
+        val t = InvoiceCalculator.totals(items, BigDecimal("10"))
+        assertEquals(3500L, t.subtotal.minor)     // 2000 + 500 + 1000
         assertEquals(100L, t.totalDiscount.minor)
-        assertEquals(100L, t.totalTax.minor)     // 1000 * 10%
-        assertEquals(3500L, t.grandTotal.minor)  // 3500 - 100 + 100
+        assertEquals(340L, t.taxAmount.minor)     // (3500 - 100) * 10% = 340
+        assertEquals(3740L, t.grandTotal.minor)   // 3500 - 100 + 340
     }
 
     @Test fun emptyInvoiceIsZero() {

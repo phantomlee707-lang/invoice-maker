@@ -12,6 +12,7 @@ import com.rainweaver.invoicemaker.domain.InvoiceCalculator
 import com.rainweaver.invoicemaker.domain.InvoiceNumbering
 import com.rainweaver.invoicemaker.domain.InvoiceStatus
 import com.rainweaver.invoicemaker.domain.LineItemInput
+import java.math.BigDecimal
 
 /**
  * Single entry point for persistence. Creating an invoice computes totals,
@@ -67,12 +68,13 @@ class InvoiceRepository(private val db: InvoiceDatabase) {
         notes: String,
         terms: String,
         template: String,
+        taxRate: BigDecimal,
         status: InvoiceStatus = InvoiceStatus.ISSUED,
     ): Long {
         val biz = businessProfile()
         val cust = customer ?: customerOneOff ?: CustomerEntity(name = "")
         val number = assignNumber()
-        val totals = InvoiceCalculator.totals(lines)
+        val totals = InvoiceCalculator.totals(lines, taxRate)
 
         val header = InvoiceEntity(
             number = number,
@@ -81,6 +83,7 @@ class InvoiceRepository(private val db: InvoiceDatabase) {
             status = status.name,
             currency = biz.currency,
             template = template,
+            taxRate = taxRate.toPlainString(),
             customerName = cust.name,
             customerContact = cust.contactPerson,
             customerAddress = cust.address,
@@ -93,7 +96,7 @@ class InvoiceRepository(private val db: InvoiceDatabase) {
             businessPaymentInstructions = biz.paymentInstructions,
             subtotalMinor = totals.subtotal.minor,
             totalDiscountMinor = totals.totalDiscount.minor,
-            totalTaxMinor = totals.totalTax.minor,
+            totalTaxMinor = totals.taxAmount.minor,
             grandTotalMinor = totals.grandTotal.minor,
             notes = notes,
             terms = terms,
@@ -108,10 +111,10 @@ class InvoiceRepository(private val db: InvoiceDatabase) {
                 quantity = item.quantity.toPlainString(),
                 unitPriceMinor = item.unitPrice.minor,
                 discountMinor = item.discount.minor,
-                taxPercent = item.taxPercent?.toPlainString(),
+                taxPercent = null,
                 lineGrossMinor = lt.gross.minor,
                 lineDiscountMinor = lt.discount.minor,
-                lineTaxMinor = lt.tax.minor,
+                lineTaxMinor = 0L,
                 lineTotalMinor = lt.total.minor,
             )
         }

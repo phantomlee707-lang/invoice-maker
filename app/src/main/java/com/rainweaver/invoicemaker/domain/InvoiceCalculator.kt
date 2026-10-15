@@ -6,7 +6,7 @@ import java.math.RoundingMode
 /**
  * Deterministic, decimal-safe invoice math. All money stays in integer minor
  * units; the only fractional step (tax) rounds HALF_UP to a minor unit so the
- * same inputs always produce the same totals.
+ * same inputs always produce the same totals. Tax is invoice-level.
  */
 object InvoiceCalculator {
 
@@ -15,36 +15,32 @@ object InvoiceCalculator {
         // Cap the discount at the line gross so a line can never go negative.
         val discount = if (item.discount.minor > gross.minor) gross else item.discount
         val taxable = gross - discount
-
-        val tax = item.taxPercent?.let { pct ->
-            val raw = taxable.count().multiply(pct).divide(BigDecimal(100))
-            Money.of(raw.setScale(0, RoundingMode.HALF_UP).toLong())
-        } ?: Money.ZERO
-
-        return LineTotal(
-            gross = gross,
-            discount = discount,
-            taxable = taxable,
-            tax = tax,
-            total = taxable + tax,
-        )
+        return LineTotal(gross = gross, discount = discount, taxable = taxable, total = taxable)
     }
 
-    fun totals(items: List<LineItemInput>): InvoiceTotals {
+    /** Invoice-level tax on the discounted base: (subtotal - discount) * rate/100, HALF_UP. */
+    fun taxAmount(subtotal: Money, discount: Money, ratePercent: BigDecimal): Money {
+        if (ratePercent.signum() == 0) return Money.ZERO
+        val base = subtotal - discount
+        val raw = base.count().multiply(ratePercent).divide(BigDecimal(100))
+        return Money.of(raw.setScale(0, RoundingMode.HALF_UP).toLong())
+    }
+
+    fun totals(items: List<LineItemInput>, taxRate: BigDecimal = BigDecimal.ZERO): InvoiceTotals {
         var subtotal = 0L
         var totalDiscount = 0L
-        var totalTax = 0L
         for (item in items) {
             val lt = lineTotal(item)
             subtotal += lt.gross.minor
             totalDiscount += lt.discount.minor
-            totalTax += lt.tax.minor
         }
-        val grandTotal = subtotal - totalDiscount + totalTax
+        val tax = taxAmount(Money.of(subtotal), Money.of(totalDiscount), taxRate)
+        val grandTotal = subtotal - totalDiscount + tax.minor
         return InvoiceTotals(
             subtotal = Money.of(subtotal),
             totalDiscount = Money.of(totalDiscount),
-            totalTax = Money.of(totalTax),
+            taxRate = taxRate,
+            taxAmount = tax,
             grandTotal = Money.of(grandTotal),
         )
     }

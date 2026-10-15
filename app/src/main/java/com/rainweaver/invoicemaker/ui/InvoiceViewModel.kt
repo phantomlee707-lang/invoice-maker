@@ -37,9 +37,10 @@ data class UiState(
     val draftNotes: String = "",
     val draftTerms: String = "",
     val draftTemplate: String = "MINIMAL",
+    val draftTaxRate: String = "0",
     val message: String? = null,
 ) {
-    val draftTotals: InvoiceTotals get() = InvoiceCalculator.totals(draftLines)
+    val draftTotals: InvoiceTotals get() = InvoiceCalculator.totals(draftLines, draftTaxRate.toBigDecimalOrNull() ?: BigDecimal.ZERO)
     val draftCustomer: CustomerEntity? get() = draftCustomerId?.let { id -> customers.firstOrNull { it.id == id } }
 }
 
@@ -80,17 +81,18 @@ class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
     fun setDraftLine(id: Long, line: LineItemInput) =
         _state.update { s -> s.copy(draftLines = s.draftLines.map { if (it.id == id) line else it }) }
     fun addDraftLine() = _state.update { it.copy(draftLines = it.draftLines + LineItemInput()) }
-    fun addCatalogLine(description: String, unitPriceMinor: Long, taxPercent: BigDecimal?) =
-        _state.update { it.copy(draftLines = it.draftLines + LineItemInput(description = description, unitPrice = Money.of(unitPriceMinor), taxPercent = taxPercent)) }
+    fun addCatalogLine(description: String, unitPriceMinor: Long) =
+        _state.update { it.copy(draftLines = it.draftLines + LineItemInput(description = description, unitPrice = Money.of(unitPriceMinor))) }
     fun removeDraftLine(id: Long) =
         _state.update { s -> if (s.draftLines.size > 1) s.copy(draftLines = s.draftLines.filterNot { it.id == id }) else s }
     fun setDraftDates(issue: Long, due: Long?) = _state.update { it.copy(draftIssueDate = issue, draftDueDate = due) }
     fun setDraftNotes(n: String) = _state.update { it.copy(draftNotes = n) }
     fun setDraftTerms(t: String) = _state.update { it.copy(draftTerms = t) }
     fun setDraftTemplate(t: String) = _state.update { it.copy(draftTemplate = t) }
+    fun setDraftTaxRate(t: String) = _state.update { it.copy(draftTaxRate = t) }
     fun clearDraft() = _state.update {
         it.copy(draftCustomerId = null, draftOneOff = CustomerEntity(name = ""), draftLines = listOf(LineItemInput()),
-            draftIssueDate = todayEpochDay(), draftDueDate = null, draftNotes = "", draftTerms = "", draftTemplate = "MINIMAL")
+            draftIssueDate = todayEpochDay(), draftDueDate = null, draftNotes = "", draftTerms = "", draftTemplate = "MINIMAL", draftTaxRate = "0")
     }
 
     // ---- save invoice (validate first) ----
@@ -110,6 +112,7 @@ class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
             notes = s.draftNotes,
             terms = s.draftTerms,
             template = s.draftTemplate,
+            taxRate = s.draftTaxRate.toBigDecimalOrNull() ?: BigDecimal.ZERO,
             status = status,
         )
         clearDraft(); reload(); msg("Invoice saved"); onDone(id)
@@ -127,7 +130,6 @@ class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
                 quantity = runCatching { BigDecimal(it.quantity) }.getOrElse { BigDecimal.ONE },
                 unitPrice = Money.of(it.unitPriceMinor),
                 discount = Money.of(it.discountMinor),
-                taxPercent = it.taxPercent?.let { p -> runCatching { BigDecimal(p) }.getOrNull() },
             )
         }.ifEmpty { listOf(LineItemInput()) }
         _state.update {
@@ -137,6 +139,7 @@ class InvoiceViewModel(app: Application) : AndroidViewModel(app) {
                     address = inv.invoice.customerAddress, email = inv.invoice.customerEmail, phone = inv.invoice.customerPhone),
                 draftLines = lines, draftIssueDate = todayEpochDay(), draftDueDate = null,
                 draftNotes = inv.invoice.notes, draftTerms = inv.invoice.terms, draftTemplate = inv.invoice.template,
+                draftTaxRate = inv.invoice.taxRate,
             )
         }
         msg("Loaded as new draft")
